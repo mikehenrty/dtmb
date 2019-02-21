@@ -1,165 +1,198 @@
-var DEBUG = false;
+// Text
+var TITLE = 'My Game Title';
+var INSTRUCTIONS = `
+Tap on the screen
+to make me jump!
+`;
+var GAME_OVER_MESSAGE = 'GAME OVER';
+var TRY_AGAIN_MESSAGE = 'TRY AGAIN?';
+
+
+// Pictures
+var MAIN_CHARACTER_HAPPY = 'assets/happy.svg';
+var MAIN_CHARACTER_SAD = 'assets/sad.svg';
+var FLOATY = 'assets/blob.png';
+var OBSTACLE = 'assets/rock.svg';
+var GROUND = 'assets/just-waves.png';
+
+
+// Sounds
+var JUMP = 'assets/flap.wav';
+var SCORE = 'assets/score.wav';
+var HIT = 'assets/hurt.wav';
+
+
+// Cool game stuff
+var BACKGROUND_COLOR = 'black';
+var SKY_COLOR = 'blue';
+var MAIN_SIZE = 64;
+var CLOUD_SIZE = 200;
 var SPEED = 180;
-var GRAVITY = 18;
-var FLAP = 420;
-var SPAWN_RATE = 1 / 1.2;
-var OPENING = 144;
+var GRAVITY = 900;
+var FLAP_STRENGTH = 420;
+var SPAWN_RATE = 1.2;
+var OPENING = 200;
+var GAMEOVER_DELAY = 3000;
+var WORLD_WIDTH = 480;
+var WORLD_HEIGHT = 700;
+var OBSTACLE_WIDTH = 80;
+var DEBUG = false;
 
-function init(parent) {
+var FONT = 'Luckiest+Guy';
 
-var state = {
-    preload: preload,
-    create: create,
-    update: update,
-    render: render
-};
 
-var game = new Phaser.Game(
-    480,
-    700,
-    Phaser.CANVAS,
-    parent,
-    state,
-    false,
-    false
-);
-
-function preload() {
-    var assets = {
-        spritesheet: {
-            birdie: ['assets/birdie.png', 48, 24],
-            clouds: ['assets/clouds.png', 128, 64]
-        },
-        image: {
-            finger: ['assets/finger.png'],
-            fence: ['assets/fence.png']
-        },
-        audio: {
-            flap: ['assets/flap.wav'],
-            score: ['assets/score.wav'],
-            hurt: ['assets/hurt.wav']
-        }
-    };
-    Object.keys(assets).forEach(function(type) {
-        Object.keys(assets[type]).forEach(function(id) {
-            game.load[type].apply(game.load, [id].concat(assets[type][id]));
-        });
-    });
-}
-
-var gameStarted,
+// Game code
+var game,
+    gameStarted,
     gameOver,
     score,
     bg,
-    credits,
     clouds,
-    fingers,
+    obstacles,
     invs,
-    birdie,
-    fence,
+    character,
+    ground,
     scoreText,
     instText,
     gameOverText,
     flapSnd,
     scoreSnd,
     hurtSnd,
-    fingersTimer,
-    cloudsTimer,
-    cobraMode = 0,
+    obstaclesTimer,
+    inputDisabled,
     gameOvers = 0;
 
+function boot(parent, sky) {
+    new Phaser.Game({
+        type: Phaser.AUTO,
+        physics: {
+            default: 'arcade',
+            arcade: {
+                debug: DEBUG
+            },
+        },
+        width: WORLD_WIDTH,
+        height: WORLD_HEIGHT,
+        scene: {
+            preload: preload,
+            create: create,
+            update: update,
+        },
+        scale: {
+            parent,
+            mode: Phaser.Scale.FIT,
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+            width: WORLD_WIDTH,
+            height: WORLD_HEIGHT,
+        },
+        backgroundColor: sky,
+        antialias: true,
+    });
+}
+
+function preload() {
+    var assets = {
+        image: {
+            happy: MAIN_CHARACTER_HAPPY,
+            sad: MAIN_CHARACTER_SAD,
+            floaty: FLOATY,
+            obstacle: OBSTACLE,
+            ground: GROUND,
+        },
+        audio: {
+            flap: JUMP,
+            score: SCORE,
+            hurt: HIT,
+        }
+    };
+    Object.keys(assets).forEach((type) => {
+        Object.keys(assets[type]).forEach((id) => {
+            this.load[type].apply(this.load, [id].concat(assets[type][id]));
+        });
+    });
+}
+
+function addText(x, y, config) {
+    var style  = Object.assign({
+        fontSize: '24px',
+        fontFamily: `"${FONT.replace('+', ' ')}"`,
+        fill: '#fff',
+        stroke: BACKGROUND_COLOR,
+        strokeThickness: 4,
+        align: 'center'
+    }, config)
+    return this.add.text(x, y , '', style);
+}
+
+function getColorString(color) {
+
+    
+}
+
+function getImageDimensions(key) {
+    var src = this.textures.get(key).source[0];
+    return {
+        width: src.width,
+        height: src.height,
+    };
+}
 function create() {
-    game.stage.scaleMode = Phaser.StageScaleMode.SHOW_ALL;
-    game.stage.scale.setScreenSize(true);
-    // Draw bg
-    bg = game.add.graphics(0, 0);
-    bg.beginFill(0xDDEEFF, 1);
-    bg.drawRect(0, 0, game.world.width, game.world.height);
-    bg.endFill();
-    // Credits 'yo
-    credits = game.add.text(
-        game.world.width / 2,
-        10,
-        'marksteve.com/dtmb\n@themarksteve',
-        {
-            font: '8px "Press Start 2P"',
-            fill: '#fff',
-            align: 'center'
-        }
-    );
-    credits.anchor.x = 0.5;
     // Add clouds group
-    clouds = game.add.group();
-    // Add fingers
-    fingers = game.add.group();
+    clouds = this.physics.add.group();
+    // Add obstacles
+    obstacles = this.physics.add.group();
     // Add invisible thingies
-    invs = game.add.group();
-    // Add birdie
-    birdie = game.add.sprite(0, 0, 'birdie');
-    birdie.anchor.setTo(0.5, 0.5);
-    birdie.animations.add('fly', [0, 1, 2, 3], 10, true);
-    birdie.animations.add('cobra', [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], 60, false);
-    birdie.inputEnabled = true;
-    birdie.body.collideWorldBounds = true;
-    birdie.body.gravity.y = GRAVITY;
-    // Add fence
-    fence = game.add.tileSprite(0, game.world.height - 32, game.world.width, 32, 'fence');
-    fence.tileScale.setTo(2, 2);
+    invs = this.physics.add.group();
+
+    // Add character
+    character = this.physics.add.sprite(0, 0, 'happy');
+    character.setOrigin(0.5, 0.5);
+    character.setDepth(1);
+    character.inputEnabled = true;
+    character.setCollideWorldBounds(true);
+
+    // Add ground
+    var dim = getImageDimensions.call(this, 'ground');
+    ground = this.add.tileSprite(0, WORLD_HEIGHT, WORLD_WIDTH * 2, dim.height, 'ground');
+    ground.setAlpha(0.7);
+    ground.setDepth(1);
+
     // Add score text
-    scoreText = game.add.text(
-        game.world.width / 2,
-        game.world.height / 4,
-        "",
-        {
-            font: '16px "Press Start 2P"',
-            fill: '#fff',
-            stroke: '#430',
-            strokeThickness: 4,
-            align: 'center'
-        }
-    );
-    scoreText.anchor.setTo(0.5, 0.5);
+    scoreText = addText.call(this, WORLD_WIDTH / 2, WORLD_HEIGHT / 4)
+    scoreText.setOrigin(0.5, 0.5);
+    scoreText.setDepth(1);
+
     // Add instructions text
-    instText = game.add.text(
-        game.world.width / 2,
-        game.world.height - game.world.height / 4,
-        "",
+    instText = addText.call(
+        this,
+        WORLD_WIDTH / 2,
+        WORLD_HEIGHT - WORLD_HEIGHT / 4,
         {
-            font: '8px "Press Start 2P"',
-            fill: '#fff',
-            stroke: '#430',
-            strokeThickness: 4,
-            align: 'center'
+            fontSize: '16px',
         }
     );
-    instText.anchor.setTo(0.5, 0.5);
+    instText.setOrigin(0.5, 0.5);
+    instText.setDepth(1);
+
     // Add game over text
-    gameOverText = game.add.text(
-        game.world.width / 2,
-        game.world.height / 2,
-        "",
-        {
-            font: '16px "Press Start 2P"',
-            fill: '#fff',
-            stroke: '#430',
-            strokeThickness: 4,
-            align: 'center'
-        }
-    );
-    gameOverText.anchor.setTo(0.5, 0.5);
-    gameOverText.scale.setTo(2, 2);
+    gameOverText = addText.call(this, WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
+    gameOverText.setOrigin(0.5, 0.5);
+    gameOverText.scaleX = 2;
+    gameOverText.scaleY = 2;
+    gameOverText.setDepth(1);
+    gameOverText.setText(GAME_OVER_MESSAGE);
+
     // Add sounds
-    flapSnd = game.add.audio('flap');
-    scoreSnd = game.add.audio('score');
-    hurtSnd = game.add.audio('hurt');
+    flapSnd = this.sound.add('flap');
+    scoreSnd = this.sound.add('score');
+    hurtSnd = this.sound.add('hurt');
+
     // Add controls
-    game.input.onDown.add(flap);
-    game.input.keyboard.addCallbacks(game, onKeyDown, onKeyUp);
-    // Start clouds timer
-    cloudsTimer = new Phaser.Timer(game);
-    cloudsTimer.onEvent.add(spawnCloud);
-    cloudsTimer.start();
-    cloudsTimer.add(Math.random());
+    this.input.on('pointerdown', flap);
+    this.input.keyboard.on('keydown_SPACE', flap);
+
+    spawnCloud.call(this);
+
     // RESET!
     reset();
 }
@@ -168,105 +201,108 @@ function reset() {
     gameStarted = false;
     gameOver = false;
     score = 0;
-    credits.renderable = true;
-    scoreText.setText("DON'T\nTOUCH\nMY\nBIRDIE");
-    instText.setText("TOUCH TO FLAP\nBIRDIE WINGS");
-    gameOverText.renderable = false;
-    birdie.body.allowGravity = false;
-    birdie.angle = 0;
-    birdie.reset(game.world.width / 4, game.world.height / 2);
-    birdie.scale.setTo(2, 2);
-    birdie.animations.play('fly');
-    fingers.removeAll();
-    invs.removeAll();
+    scoreText.setText(TITLE.split(' ').join('\n'));
+    instText.setText(INSTRUCTIONS.trim());
+    gameOverText.visible = false;
+    character.setTexture('happy');
+    var scale = MAIN_SIZE / character.height;
+    character.setScale(scale, scale);
+    character.angle = 0;
+    character.setX(WORLD_WIDTH / 4);
+    character.setY(WORLD_HEIGHT / 2);
+    character.setGravityY(0);
+    obstacles.clear(true);
+    invs.clear(true);
 }
 
 function start() {
-    credits.renderable = false;
-    birdie.body.allowGravity = true;
     // SPAWN FINGERS!
-    fingersTimer = new Phaser.Timer(game);
-    fingersTimer.onEvent.add(spawnFingers);
-    fingersTimer.start();
-    fingersTimer.add(2);
+    obstaclesTimer = this.scene.time.addEvent({
+        callback: spawnObstacles,
+        loop: true,
+        delay: SPAWN_RATE * 1000,
+    })
+
     // Show score
     scoreText.setText(score);
-    instText.renderable = false;
+    instText.visible = false;
+
+    character.setGravityY(GRAVITY);
+
     // START!
     gameStarted = true;
 }
 
 function flap() {
-    if (!gameStarted) {
-        start();
+    if (inputDisabled) {
+        return;
     }
-    if (!gameOver) {
-        birdie.body.velocity.y = -FLAP;
+
+    if (!gameStarted) {
+        start.call(this);
+    }
+
+    if (gameOver) {
+        reset();
+    } else {
+        character.setVelocityY(-FLAP_STRENGTH);
         flapSnd.play();
     }
 }
 
 function spawnCloud() {
-    cloudsTimer.stop();
-
-    var cloudY = Math.random() * game.height / 2;
-    var cloud = clouds.create(
-        game.width,
-        cloudY,
-        'clouds',
-        Math.floor(4 * Math.random())
-    );
-    var cloudScale = 2 + 2 * Math.random();
-    cloud.alpha = 2 / cloudScale;
-    cloud.scale.setTo(cloudScale, cloudScale);
-    cloud.body.allowGravity = false;
-    cloud.body.velocity.x = -SPEED / cloudScale;
-    cloud.anchor.y = 0;
-
-    cloudsTimer.start();
-    cloudsTimer.add(4 * Math.random());
+    this.time.addEvent({
+        callback: () => {
+            var cloudY = Math.random() * WORLD_HEIGHT / 2;
+            var cloud = clouds.create(
+                WORLD_WIDTH,
+                cloudY,
+                'floaty'
+            );
+            var rando = Math.random();
+            var scale = CLOUD_SIZE * (rando + 0.5) / cloud.width;
+            cloud.setOrigin(0, 0);
+            cloud.setScale(scale, scale);
+            cloud.alpha = 2 / (2 + rando);
+            cloud.setVelocityX(-SPEED / (1.5 + rando));
+            spawnCloud.call(this);
+        },
+        delay: Phaser.Math.Between(100,5000),
+    });
 }
 
-function o() {
-    return OPENING + 60 * ((score > 50 ? 50 : 50 - score) / 50);
-}
+function spawnObstacle(offset, flipped) {
+    var obstacle = obstacles.create(0, 0, 'obstacle');
+    var scale = OBSTACLE_WIDTH / obstacle.width;
+    var centering = (obstacle.height * scale / 2) + (OPENING / 2);
+    if (flipped) {
+        centering = -centering;
+        obstacle.setAngle(180);
+    }
 
-function spawnFinger(fingerY, flipped) {
-    var finger = fingers.create(
-        game.width,
-        fingerY + (flipped ? -o() : o()) / 2,
-        'finger'
-    );
-    finger.body.allowGravity = false;
-
-    // Flip finger! *GASP*
-    finger.scale.setTo(2, flipped ? -2 : 2);
-    finger.body.offset.y = flipped ? -finger.body.height * 2 : 0;
-
+    obstacle.scaleX = obstacle.scaleY = scale;
+    obstacle.setX(WORLD_WIDTH + OBSTACLE_WIDTH);
+    obstacle.setY(WORLD_HEIGHT / 2 + centering + offset);
     // Move to the left
-    finger.body.velocity.x = -SPEED;
+    obstacle.setVelocityX(-SPEED);
 
-    return finger;
+    return obstacle;
 }
 
-function spawnFingers() {
-    fingersTimer.stop();
-
-    var fingerY = ((game.height - 16 - o() / 2) / 2) + (Math.random() > 0.5 ? -1 : 1) * Math.random() * game.height / 6;
-    // Bottom finger
-    var botFinger = spawnFinger(fingerY);
-    // Top finger (flipped)
-    var topFinger = spawnFinger(fingerY, true);
+function spawnObstacles() {
+    var offset = (Math.random() > 0.5 ? -1 : 1) * Math.random() * WORLD_HEIGHT / 6;
+    // Bottom obstacle
+    var botObstacle = spawnObstacle(offset);
+    // Top obstacle (flipped)
+    var topObstacle = spawnObstacle(offset, true);
 
     // Add invisible thingy
-    var inv = invs.create(topFinger.x + topFinger.width, 0);
-    inv.width = 2;
-    inv.height = game.world.height;
-    inv.body.allowGravity = false;
-    inv.body.velocity.x = -SPEED;
-
-    fingersTimer.start();
-    fingersTimer.add(1 / SPAWN_RATE);
+    var inv = invs.create(botObstacle.getTopRight().x, 0);
+    inv.visible = false;
+    inv.setOrigin(0, 0);
+    inv.displayWidth = 2;
+    inv.displayHeight = WORLD_HEIGHT;
+    inv.setVelocityX(-SPEED);
 }
 
 function addScore(_, inv) {
@@ -278,132 +314,113 @@ function addScore(_, inv) {
 
 function setGameOver() {
     gameOver = true;
-    instText.setText("TOUCH BIRDIE\nTO TRY AGAIN");
-    instText.renderable = true;
-    var hiscore = window.localStorage.getItem('hiscore');
-    hiscore = hiscore ? hiscore : score;
-    hiscore = score > parseInt(hiscore, 10) ? score : hiscore;
-    window.localStorage.setItem('hiscore', hiscore);
-    gameOverText.setText("GAME OVER");
-    gameOverText.renderable = true;
-    // Stop all fingers
-    fingers.forEachAlive(function(finger) {
-        finger.body.velocity.x = 0;
+    instText.setText(TRY_AGAIN_MESSAGE);
+    instText.visible = true;
+    gameOverText.visible = true;
+
+    // Stop all obstacles and invisible score barriers.
+    obstacles.children.each(function(obstacle) {
+        obstacle.body.velocity.x = 0;
     });
-    invs.forEach(function(inv) {
+    invs.children.each(function(inv) {
         inv.body.velocity.x = 0;
     });
-    // Stop spawning fingers
-    fingersTimer.stop();
-    // Make birdie reset the game
-    birdie.events.onInputDown.addOnce(reset);
+
     hurtSnd.play();
     gameOvers++;
+    obstaclesTimer.destroy();
+
+    inputDisabled = true;
+    setTimeout(() => {
+        inputDisabled = false;
+    }, 750);
 }
 
-function update() {
+function update(elapsed, delta) {
     if (gameStarted) {
-        // Make birdie dive
-        var dvy = FLAP + birdie.body.velocity.y;
-        birdie.angle = (90 * dvy / FLAP) - 180;
-        if (birdie.angle < -30) {
-            birdie.angle = -30;
+        // Make character dive
+        var dvy = FLAP_STRENGTH + character.body.velocity.y;
+        character.angle = (90 * dvy / FLAP_STRENGTH) - 180;
+        if (character.angle < -30) {
+            character.angle = -30;
         }
         if (
             gameOver ||
-            birdie.angle > 90 ||
-            birdie.angle < -90
+            character.angle > 90 ||
+            character.angle < -90
         ) {
-            birdie.angle = 90;
-            birdie.animations.stop();
-            birdie.frame = 3;
-        } else {
-            birdie.animations.play(cobraMode > 0 ? 'cobra' : 'fly');
+            character.angle = 90;
         }
+
         // Birdie is DEAD!
         if (gameOver) {
-            if (birdie.scale.x < 4) {
-                birdie.scale.setTo(
-                    birdie.scale.x * 1.2,
-                    birdie.scale.y * 1.2
-                );
+            var targetScale = MAIN_SIZE * 2 / character.height;
+            if (character.scaleX < targetScale) {
+                character.scaleX *= 1.07;
+                character.scaleY *= 1.07;
             }
             // Shake game over text
-            gameOverText.angle = Math.random() * 5 * Math.cos(game.time.now / 100);
-        } else {
-            // Check game over
-            if (cobraMode < 1) {
-                game.physics.overlap(birdie, fingers, setGameOver);
-                if (!gameOver && birdie.body.bottom >= game.world.bounds.bottom) {
-                    setGameOver();
-                }
+            gameOverText.angle = 3 * Math.cos(this.time.now / 100);
+            character.setTexture('sad');
+        } else { this.physics.overlap(character, obstacles, setGameOver);
+            if (!gameOver && character.body.bottom >= WORLD_HEIGHT) {
+                setGameOver();
             }
             // Add score
-            game.physics.overlap(birdie, invs, addScore);
+            this.physics.overlap(character, invs, addScore);
         }
-        // Remove offscreen fingers
-        fingers.forEachAlive(function(finger) {
-            if (finger.x + finger.width < game.world.bounds.left) {
-                finger.kill();
+        // Remove offscreen obstacles
+        obstacles.children.each(function(obstacle) {
+            if (obstacle.x + obstacle.width < 0) {
+                obstacle.destroy();
             }
         });
-        // Update finger timer
-        fingersTimer.update();
+        // Remove offscreen obstacles
+        invs.children.each(function(inv) {
+            if (inv.x + inv.width < 0) {
+                inv.destroy();
+            }
+        });
     } else {
-        birdie.y = (game.world.height / 2) + 8 * Math.cos(game.time.now / 200);
+        character.y = (WORLD_HEIGHT / 2) + 8 * Math.cos(this.time.now / 200);
     }
     if (!gameStarted || gameOver) {
-        // Shake instructions text
-        instText.scale.setTo(
-            2 + 0.1 * Math.sin(game.time.now / 100),
-            2 + 0.1 * Math.cos(game.time.now / 100)
-        );
+        // Shake instructions and score
+        instText.scaleX = 2 + 0.1 * Math.sin(this.time.now / 100);
+        instText.scaleY = 2 + 0.1 * Math.cos(this.time.now / 100);
+        scoreText.scaleX = 2 + 0.1 * Math.sin(this.time.now / 100);
+        scoreText.scaleY = 2 + 0.1 * Math.cos(this.time.now / 100);
     }
-    // Shake score text
-    scoreText.scale.setTo(
-        2 + 0.1 * Math.cos(game.time.now / 100),
-        2 + 0.1 * Math.sin(game.time.now / 100)
-    );
-    // Update clouds timer
-    cloudsTimer.update();
+
     // Remove offscreen clouds
-    clouds.forEachAlive(function(cloud) {
-        if (cloud.x + cloud.width < game.world.bounds.left) {
-            cloud.kill();
+    clouds.children.each(function(cloud) {
+        if (cloud.body.right < 0) {
+            cloud.destroy();
         }
     });
-    // Scroll fence
+
+    // Scroll ground
     if (!gameOver) {
-        fence.tilePosition.x -= game.time.physicsElapsed * SPEED / 2;
-    }
-    // Decrease cobra mode
-    cobraMode -= game.time.physicsElapsed * SPEED * 5;
-}
-
-function render() {
-    if (DEBUG) {
-        game.debug.renderSpriteBody(birdie);
-        fingers.forEachAlive(function(finger) {
-            game.debug.renderSpriteBody(finger);
-        });
-        invs.forEach(function(inv) {
-            game.debug.renderSpriteBody(inv);
-        });
+        ground.tilePositionX += delta * SPEED / ground.potWidth;
     }
 }
 
-function onKeyDown(e) { }
+function init(parent) {
+    parent.style.backgroundColor = SKY_COLOR;
+    var sky = window.getComputedStyle(parent).backgroundColor;
+    console.log('key', sky);
+    parent.style.backgroundColor = BACKGROUND_COLOR;
+    // Make sure to Load our Font before we start.
+    WebFontConfig = {
+        google: { families: [ FONT ] },
+        active: boot.bind(this, parent, sky),
+    };
 
-var pressTime = 0;
-function onKeyUp(e) {
-    if (Phaser.Keyboard.SPACEBAR == e.keyCode) {
-        if (game.time.now - pressTime < 200) {
-            cobraMode = 1000;
-        } else {
-            flap();
-        }
-        pressTime = game.time.now;
-    }
+    var wf = document.createElement('script');
+    wf.src = ('https:' == document.location.protocol ? 'https' : 'http') +
+        '://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js';
+    wf.type = 'text/javascript';
+    wf.async = 'true';
+    var s = document.getElementsByTagName('script')[0];
+    s.parentNode.insertBefore(wf, s);
 }
-
-};
