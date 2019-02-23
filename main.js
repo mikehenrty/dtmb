@@ -9,11 +9,11 @@ var TRY_AGAIN_MESSAGE = 'TRY AGAIN?';
 
 
 // Pictures
-var MAIN_CHARACTER_HAPPY = 'assets/happy.svg';
-var MAIN_CHARACTER_SAD = 'assets/sad.svg';
-var FLOATY = 'assets/blob.png';
-var OBSTACLE = 'assets/rock.svg';
-var GROUND = 'assets/just-waves.png';
+var MAIN_CHARACTER_HAPPY = 'assets/happy.png';
+var MAIN_CHARACTER_SAD = 'assets/sad.png';
+var FLOATY = 'assets/cloud.png';
+var OBSTACLE = 'assets/obstacle.png';
+var GROUND = 'assets/ground.png';
 
 
 // Sounds
@@ -24,7 +24,7 @@ var HIT = 'assets/hurt.wav';
 
 // Cool game stuff
 var BACKGROUND_COLOR = 'black';
-var SKY_COLOR = 'blue';
+var SKY_COLOR = 'aqua';
 var MAIN_SIZE = 64;
 var CLOUD_SIZE = 200;
 var SPEED = 180;
@@ -114,7 +114,7 @@ function preload() {
 
 function addText(x, y, config) {
     var style  = Object.assign({
-        fontSize: '24px',
+        fontSize: '30px',
         fontFamily: `"${FONT.replace('+', ' ')}"`,
         fill: '#fff',
         stroke: BACKGROUND_COLOR,
@@ -122,11 +122,6 @@ function addText(x, y, config) {
         align: 'center'
     }, config)
     return this.add.text(x, y , '', style);
-}
-
-function getColorString(color) {
-
-    
 }
 
 function getImageDimensions(key) {
@@ -154,7 +149,6 @@ function create() {
     // Add ground
     var dim = getImageDimensions.call(this, 'ground');
     ground = this.add.tileSprite(0, WORLD_HEIGHT, WORLD_WIDTH * 2, dim.height, 'ground');
-    ground.setAlpha(0.7);
     ground.setDepth(1);
 
     // Add score text
@@ -408,7 +402,6 @@ function update(elapsed, delta) {
 function init(parent) {
     parent.style.backgroundColor = SKY_COLOR;
     var sky = window.getComputedStyle(parent).backgroundColor;
-    console.log('key', sky);
     parent.style.backgroundColor = BACKGROUND_COLOR;
     // Make sure to Load our Font before we start.
     WebFontConfig = {
