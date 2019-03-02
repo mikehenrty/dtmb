@@ -17,6 +17,7 @@ var GROUND = 'assets/ground.png';
 
 
 // Sounds
+var MUSIC = 'assets/music.mp3';
 var JUMP = 'assets/jump.mp3';
 var SCORE = 'assets/yay.mp3';
 var HIT = 'assets/dead.mp3';
@@ -55,6 +56,7 @@ var game,
     scoreText,
     instText,
     gameOverText,
+    music,
     flapSnd,
     scoreSnd,
     hurtSnd,
@@ -103,6 +105,7 @@ function preload() {
             flap: JUMP,
             score: SCORE,
             hurt: HIT,
+            music: MUSIC,
         }
     };
     Object.keys(assets).forEach((type) => {
@@ -177,6 +180,8 @@ function create() {
     gameOverText.setText(GAME_OVER_MESSAGE);
 
     // Add sounds
+    music = this.sound.add('music');
+    music.play({ loop: true });
     flapSnd = this.sound.add('flap');
     scoreSnd = this.sound.add('score');
     hurtSnd = this.sound.add('hurt');
