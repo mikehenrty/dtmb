@@ -17,9 +17,9 @@ var GROUND = 'assets/ground.png';
 
 
 // Sounds
-var JUMP = 'assets/flap.wav';
-var SCORE = 'assets/score.wav';
-var HIT = 'assets/hurt.wav';
+var JUMP = 'assets/jump.mp3';
+var SCORE = 'assets/yay.mp3';
+var HIT = 'assets/dead.mp3';
 
 
 // Cool game stuff
